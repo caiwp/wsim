@@ -20,15 +20,72 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// 操作
+type Op int32
+
+const (
+	Op_NONE      Op = 0 // 空
+	Op_AUTH      Op = 1 // 鉴权
+	Op_SEND      Op = 2 // 发送
+	Op_HEARTBEAT Op = 3 // 心跳
+	Op_KICK      Op = 4 // 踢出
+)
+
+// Enum value maps for Op.
+var (
+	Op_name = map[int32]string{
+		0: "NONE",
+		1: "AUTH",
+		2: "SEND",
+		3: "HEARTBEAT",
+		4: "KICK",
+	}
+	Op_value = map[string]int32{
+		"NONE":      0,
+		"AUTH":      1,
+		"SEND":      2,
+		"HEARTBEAT": 3,
+		"KICK":      4,
+	}
+)
+
+func (x Op) Enum() *Op {
+	p := new(Op)
+	*p = x
+	return p
+}
+
+func (x Op) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Op) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_wsim_proto_enumTypes[0].Descriptor()
+}
+
+func (Op) Type() protoreflect.EnumType {
+	return &file_proto_wsim_proto_enumTypes[0]
+}
+
+func (x Op) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Op.Descriptor instead.
+func (Op) EnumDescriptor() ([]byte, []int) {
+	return file_proto_wsim_proto_rawDescGZIP(), []int{0}
+}
+
+// 与客户端交互消息体
 type Proto struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Ver  int32  `protobuf:"varint,1,opt,name=ver,proto3" json:"ver,omitempty"`
-	Op   int32  `protobuf:"varint,2,opt,name=op,proto3" json:"op,omitempty"`
-	Seq  int32  `protobuf:"varint,3,opt,name=seq,proto3" json:"seq,omitempty"`
-	Body []byte `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
+	Ver  int32  `protobuf:"varint,1,opt,name=ver,proto3" json:"ver,omitempty"`  // 版本
+	Op   int32  `protobuf:"varint,2,opt,name=op,proto3" json:"op,omitempty"`    // 操作 对应 Op
+	Seq  int32  `protobuf:"varint,3,opt,name=seq,proto3" json:"seq,omitempty"`  // 系列号
+	Body string `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"` // 内容
 }
 
 func (x *Proto) Reset() {
@@ -84,21 +141,23 @@ func (x *Proto) GetSeq() int32 {
 	return 0
 }
 
-func (x *Proto) GetBody() []byte {
+func (x *Proto) GetBody() string {
 	if x != nil {
 		return x.Body
 	}
-	return nil
+	return ""
 }
 
+// 与服务端交互---------------------------------------
+// 推送个人
 type PushOneReq struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Rid  string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"`
-	Cid  string `protobuf:"bytes,2,opt,name=cid,proto3" json:"cid,omitempty"`
-	Data *Proto `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	Rid   string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"` // 房间ID
+	Cid   string `protobuf:"bytes,2,opt,name=cid,proto3" json:"cid,omitempty"` // 用户ID
+	Proto *Proto `protobuf:"bytes,3,opt,name=proto,proto3" json:"proto,omitempty"`
 }
 
 func (x *PushOneReq) Reset() {
@@ -147,9 +206,9 @@ func (x *PushOneReq) GetCid() string {
 	return ""
 }
 
-func (x *PushOneReq) GetData() *Proto {
+func (x *PushOneReq) GetProto() *Proto {
 	if x != nil {
-		return x.Data
+		return x.Proto
 	}
 	return nil
 }
@@ -192,6 +251,7 @@ func (*PushOneReply) Descriptor() ([]byte, []int) {
 	return file_proto_wsim_proto_rawDescGZIP(), []int{2}
 }
 
+// 批量推送
 type PushBatchReq struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -277,17 +337,18 @@ func (*PushBatchReply) Descriptor() ([]byte, []int) {
 	return file_proto_wsim_proto_rawDescGZIP(), []int{4}
 }
 
-type BroadcastReq struct {
+// 广播房间
+type BroadcastRoomReq struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Rid  string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"`
-	Data *Proto `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Rid   string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"` // 房间ID
+	Proto *Proto `protobuf:"bytes,2,opt,name=proto,proto3" json:"proto,omitempty"`
 }
 
-func (x *BroadcastReq) Reset() {
-	*x = BroadcastReq{}
+func (x *BroadcastRoomReq) Reset() {
+	*x = BroadcastRoomReq{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_proto_wsim_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -295,13 +356,13 @@ func (x *BroadcastReq) Reset() {
 	}
 }
 
-func (x *BroadcastReq) String() string {
+func (x *BroadcastRoomReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BroadcastReq) ProtoMessage() {}
+func (*BroadcastRoomReq) ProtoMessage() {}
 
-func (x *BroadcastReq) ProtoReflect() protoreflect.Message {
+func (x *BroadcastRoomReq) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_wsim_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -313,33 +374,33 @@ func (x *BroadcastReq) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BroadcastReq.ProtoReflect.Descriptor instead.
-func (*BroadcastReq) Descriptor() ([]byte, []int) {
+// Deprecated: Use BroadcastRoomReq.ProtoReflect.Descriptor instead.
+func (*BroadcastRoomReq) Descriptor() ([]byte, []int) {
 	return file_proto_wsim_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *BroadcastReq) GetRid() string {
+func (x *BroadcastRoomReq) GetRid() string {
 	if x != nil {
 		return x.Rid
 	}
 	return ""
 }
 
-func (x *BroadcastReq) GetData() *Proto {
+func (x *BroadcastRoomReq) GetProto() *Proto {
 	if x != nil {
-		return x.Data
+		return x.Proto
 	}
 	return nil
 }
 
-type BroadcastReply struct {
+type BroadcastRoomReply struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 }
 
-func (x *BroadcastReply) Reset() {
-	*x = BroadcastReply{}
+func (x *BroadcastRoomReply) Reset() {
+	*x = BroadcastRoomReply{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_proto_wsim_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -347,13 +408,13 @@ func (x *BroadcastReply) Reset() {
 	}
 }
 
-func (x *BroadcastReply) String() string {
+func (x *BroadcastRoomReply) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BroadcastReply) ProtoMessage() {}
+func (*BroadcastRoomReply) ProtoMessage() {}
 
-func (x *BroadcastReply) ProtoReflect() protoreflect.Message {
+func (x *BroadcastRoomReply) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_wsim_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -365,18 +426,19 @@ func (x *BroadcastReply) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BroadcastReply.ProtoReflect.Descriptor instead.
-func (*BroadcastReply) Descriptor() ([]byte, []int) {
+// Deprecated: Use BroadcastRoomReply.ProtoReflect.Descriptor instead.
+func (*BroadcastRoomReply) Descriptor() ([]byte, []int) {
 	return file_proto_wsim_proto_rawDescGZIP(), []int{6}
 }
 
+// 鉴权
 type AuthReq struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Rid   string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"`
-	Token string `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	Rid   string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"`     // 房间ID
+	Token string `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"` // 用户TOKEN
 }
 
 func (x *AuthReq) Reset() {
@@ -425,20 +487,67 @@ func (x *AuthReq) GetToken() string {
 	return ""
 }
 
+type AuthReply struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Cid string `protobuf:"bytes,1,opt,name=cid,proto3" json:"cid,omitempty"` // 用户ID
+}
+
+func (x *AuthReply) Reset() {
+	*x = AuthReply{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_proto_wsim_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *AuthReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthReply) ProtoMessage() {}
+
+func (x *AuthReply) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_wsim_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthReply.ProtoReflect.Descriptor instead.
+func (*AuthReply) Descriptor() ([]byte, []int) {
+	return file_proto_wsim_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AuthReply) GetCid() string {
+	if x != nil {
+		return x.Cid
+	}
+	return ""
+}
+
 type PushBatchReq_Dest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Rid  string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"`
-	Cid  string `protobuf:"bytes,2,opt,name=cid,proto3" json:"cid,omitempty"`
-	Data *Proto `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	Rid   string `protobuf:"bytes,1,opt,name=rid,proto3" json:"rid,omitempty"` // 房间ID
+	Cid   string `protobuf:"bytes,2,opt,name=cid,proto3" json:"cid,omitempty"` // 用户ID
+	Proto *Proto `protobuf:"bytes,3,opt,name=proto,proto3" json:"proto,omitempty"`
 }
 
 func (x *PushBatchReq_Dest) Reset() {
 	*x = PushBatchReq_Dest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_proto_wsim_proto_msgTypes[8]
+		mi := &file_proto_wsim_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -451,7 +560,7 @@ func (x *PushBatchReq_Dest) String() string {
 func (*PushBatchReq_Dest) ProtoMessage() {}
 
 func (x *PushBatchReq_Dest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_wsim_proto_msgTypes[8]
+	mi := &file_proto_wsim_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -481,9 +590,9 @@ func (x *PushBatchReq_Dest) GetCid() string {
 	return ""
 }
 
-func (x *PushBatchReq_Dest) GetData() *Proto {
+func (x *PushBatchReq_Dest) GetProto() *Proto {
 	if x != nil {
-		return x.Data
+		return x.Proto
 	}
 	return nil
 }
@@ -497,32 +606,39 @@ var file_proto_wsim_proto_rawDesc = []byte{
 	0x72, 0x12, 0x0e, 0x0a, 0x02, 0x6f, 0x70, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x02, 0x6f,
 	0x70, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x65, 0x71, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x03,
 	0x73, 0x65, 0x71, 0x12, 0x12, 0x0a, 0x04, 0x62, 0x6f, 0x64, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28,
-	0x0c, 0x52, 0x04, 0x62, 0x6f, 0x64, 0x79, 0x22, 0x4f, 0x0a, 0x0a, 0x50, 0x75, 0x73, 0x68, 0x4f,
+	0x09, 0x52, 0x04, 0x62, 0x6f, 0x64, 0x79, 0x22, 0x51, 0x0a, 0x0a, 0x50, 0x75, 0x73, 0x68, 0x4f,
 	0x6e, 0x65, 0x52, 0x65, 0x71, 0x12, 0x10, 0x0a, 0x03, 0x72, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
 	0x28, 0x09, 0x52, 0x03, 0x72, 0x69, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x63, 0x69, 0x64, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x63, 0x69, 0x64, 0x12, 0x1d, 0x0a, 0x04, 0x64, 0x61, 0x74,
-	0x61, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x09, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x72, 0x6f,
-	0x74, 0x6f, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x0e, 0x0a, 0x0c, 0x50, 0x75, 0x73, 0x68,
-	0x4f, 0x6e, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x22, 0x84, 0x01, 0x0a, 0x0c, 0x50, 0x75, 0x73,
-	0x68, 0x42, 0x61, 0x74, 0x63, 0x68, 0x52, 0x65, 0x71, 0x12, 0x29, 0x0a, 0x04, 0x6c, 0x69, 0x73,
-	0x74, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x75, 0x73,
-	0x68, 0x42, 0x61, 0x74, 0x63, 0x68, 0x52, 0x65, 0x71, 0x2e, 0x44, 0x65, 0x73, 0x74, 0x52, 0x04,
-	0x6c, 0x69, 0x73, 0x74, 0x1a, 0x49, 0x0a, 0x04, 0x44, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03,
-	0x72, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x72, 0x69, 0x64, 0x12, 0x10,
-	0x0a, 0x03, 0x63, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x63, 0x69, 0x64,
-	0x12, 0x1d, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x09,
-	0x2e, 0x70, 0x62, 0x2e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22,
-	0x10, 0x0a, 0x0e, 0x50, 0x75, 0x73, 0x68, 0x42, 0x61, 0x74, 0x63, 0x68, 0x52, 0x65, 0x70, 0x6c,
-	0x79, 0x22, 0x3f, 0x0a, 0x0c, 0x42, 0x72, 0x6f, 0x61, 0x64, 0x63, 0x61, 0x73, 0x74, 0x52, 0x65,
-	0x71, 0x12, 0x10, 0x0a, 0x03, 0x72, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03,
-	0x72, 0x69, 0x64, 0x12, 0x1d, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x09, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x52, 0x04, 0x64, 0x61,
-	0x74, 0x61, 0x22, 0x10, 0x0a, 0x0e, 0x42, 0x72, 0x6f, 0x61, 0x64, 0x63, 0x61, 0x73, 0x74, 0x52,
-	0x65, 0x70, 0x6c, 0x79, 0x22, 0x31, 0x0a, 0x07, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x71, 0x12,
-	0x10, 0x0a, 0x03, 0x72, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x72, 0x69,
-	0x64, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x2f, 0x70, 0x62, 0x62,
-	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x63, 0x69, 0x64, 0x12, 0x1f, 0x0a, 0x05, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x09, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x72,
+	0x6f, 0x74, 0x6f, 0x52, 0x05, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x0e, 0x0a, 0x0c, 0x50, 0x75,
+	0x73, 0x68, 0x4f, 0x6e, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x22, 0x86, 0x01, 0x0a, 0x0c, 0x50,
+	0x75, 0x73, 0x68, 0x42, 0x61, 0x74, 0x63, 0x68, 0x52, 0x65, 0x71, 0x12, 0x29, 0x0a, 0x04, 0x6c,
+	0x69, 0x73, 0x74, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x70, 0x62, 0x2e, 0x50,
+	0x75, 0x73, 0x68, 0x42, 0x61, 0x74, 0x63, 0x68, 0x52, 0x65, 0x71, 0x2e, 0x44, 0x65, 0x73, 0x74,
+	0x52, 0x04, 0x6c, 0x69, 0x73, 0x74, 0x1a, 0x4b, 0x0a, 0x04, 0x44, 0x65, 0x73, 0x74, 0x12, 0x10,
+	0x0a, 0x03, 0x72, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x72, 0x69, 0x64,
+	0x12, 0x10, 0x0a, 0x03, 0x63, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x63,
+	0x69, 0x64, 0x12, 0x1f, 0x0a, 0x05, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x09, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x52, 0x05, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x22, 0x10, 0x0a, 0x0e, 0x50, 0x75, 0x73, 0x68, 0x42, 0x61, 0x74, 0x63, 0x68,
+	0x52, 0x65, 0x70, 0x6c, 0x79, 0x22, 0x45, 0x0a, 0x10, 0x42, 0x72, 0x6f, 0x61, 0x64, 0x63, 0x61,
+	0x73, 0x74, 0x52, 0x6f, 0x6f, 0x6d, 0x52, 0x65, 0x71, 0x12, 0x10, 0x0a, 0x03, 0x72, 0x69, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x72, 0x69, 0x64, 0x12, 0x1f, 0x0a, 0x05, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x09, 0x2e, 0x70, 0x62, 0x2e,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x52, 0x05, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x14, 0x0a, 0x12,
+	0x42, 0x72, 0x6f, 0x61, 0x64, 0x63, 0x61, 0x73, 0x74, 0x52, 0x6f, 0x6f, 0x6d, 0x52, 0x65, 0x70,
+	0x6c, 0x79, 0x22, 0x31, 0x0a, 0x07, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x71, 0x12, 0x10, 0x0a,
+	0x03, 0x72, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x72, 0x69, 0x64, 0x12,
+	0x14, 0x0a, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
+	0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x22, 0x1d, 0x0a, 0x09, 0x41, 0x75, 0x74, 0x68, 0x52, 0x65, 0x70,
+	0x6c, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x63, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x03, 0x63, 0x69, 0x64, 0x2a, 0x3b, 0x0a, 0x02, 0x4f, 0x70, 0x12, 0x08, 0x0a, 0x04, 0x4e, 0x4f,
+	0x4e, 0x45, 0x10, 0x00, 0x12, 0x08, 0x0a, 0x04, 0x41, 0x55, 0x54, 0x48, 0x10, 0x01, 0x12, 0x08,
+	0x0a, 0x04, 0x53, 0x45, 0x4e, 0x44, 0x10, 0x02, 0x12, 0x0d, 0x0a, 0x09, 0x48, 0x45, 0x41, 0x52,
+	0x54, 0x42, 0x45, 0x41, 0x54, 0x10, 0x03, 0x12, 0x08, 0x0a, 0x04, 0x4b, 0x49, 0x43, 0x4b, 0x10,
+	0x04, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -537,28 +653,31 @@ func file_proto_wsim_proto_rawDescGZIP() []byte {
 	return file_proto_wsim_proto_rawDescData
 }
 
-var file_proto_wsim_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_proto_wsim_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_proto_wsim_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_proto_wsim_proto_goTypes = []interface{}{
-	(*Proto)(nil),             // 0: pb.Proto
-	(*PushOneReq)(nil),        // 1: pb.PushOneReq
-	(*PushOneReply)(nil),      // 2: pb.PushOneReply
-	(*PushBatchReq)(nil),      // 3: pb.PushBatchReq
-	(*PushBatchReply)(nil),    // 4: pb.PushBatchReply
-	(*BroadcastReq)(nil),      // 5: pb.BroadcastReq
-	(*BroadcastReply)(nil),    // 6: pb.BroadcastReply
-	(*AuthReq)(nil),           // 7: pb.AuthReq
-	(*PushBatchReq_Dest)(nil), // 8: pb.PushBatchReq.Dest
+	(Op)(0),                    // 0: pb.Op
+	(*Proto)(nil),              // 1: pb.Proto
+	(*PushOneReq)(nil),         // 2: pb.PushOneReq
+	(*PushOneReply)(nil),       // 3: pb.PushOneReply
+	(*PushBatchReq)(nil),       // 4: pb.PushBatchReq
+	(*PushBatchReply)(nil),     // 5: pb.PushBatchReply
+	(*BroadcastRoomReq)(nil),   // 6: pb.BroadcastRoomReq
+	(*BroadcastRoomReply)(nil), // 7: pb.BroadcastRoomReply
+	(*AuthReq)(nil),            // 8: pb.AuthReq
+	(*AuthReply)(nil),          // 9: pb.AuthReply
+	(*PushBatchReq_Dest)(nil),  // 10: pb.PushBatchReq.Dest
 }
 var file_proto_wsim_proto_depIdxs = []int32{
-	0, // 0: pb.PushOneReq.data:type_name -> pb.Proto
-	8, // 1: pb.PushBatchReq.list:type_name -> pb.PushBatchReq.Dest
-	0, // 2: pb.BroadcastReq.data:type_name -> pb.Proto
-	0, // 3: pb.PushBatchReq.Dest.data:type_name -> pb.Proto
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	1,  // 0: pb.PushOneReq.proto:type_name -> pb.Proto
+	10, // 1: pb.PushBatchReq.list:type_name -> pb.PushBatchReq.Dest
+	1,  // 2: pb.BroadcastRoomReq.proto:type_name -> pb.Proto
+	1,  // 3: pb.PushBatchReq.Dest.proto:type_name -> pb.Proto
+	4,  // [4:4] is the sub-list for method output_type
+	4,  // [4:4] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_proto_wsim_proto_init() }
@@ -628,7 +747,7 @@ func file_proto_wsim_proto_init() {
 			}
 		}
 		file_proto_wsim_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BroadcastReq); i {
+			switch v := v.(*BroadcastRoomReq); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -640,7 +759,7 @@ func file_proto_wsim_proto_init() {
 			}
 		}
 		file_proto_wsim_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BroadcastReply); i {
+			switch v := v.(*BroadcastRoomReply); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -664,6 +783,18 @@ func file_proto_wsim_proto_init() {
 			}
 		}
 		file_proto_wsim_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*AuthReply); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_proto_wsim_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PushBatchReq_Dest); i {
 			case 0:
 				return &v.state
@@ -681,13 +812,14 @@ func file_proto_wsim_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_proto_wsim_proto_rawDesc,
-			NumEnums:      0,
-			NumMessages:   9,
+			NumEnums:      1,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_proto_wsim_proto_goTypes,
 		DependencyIndexes: file_proto_wsim_proto_depIdxs,
+		EnumInfos:         file_proto_wsim_proto_enumTypes,
 		MessageInfos:      file_proto_wsim_proto_msgTypes,
 	}.Build()
 	File_proto_wsim_proto = out.File

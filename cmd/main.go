@@ -58,13 +58,8 @@ func runHttp(logger *zap.Logger) {
 		roomId := ctx.Param("roomId")
 		logger.Debug("ws", zap.String("roomId", roomId))
 
-		hub := wsim.GetOrCreateHub(roomId)
-		if hub == nil {
-			ctx.JSON(http.StatusNotFound, nil)
-			return
-		}
-
-		wsim.ServerWs(hub, ctx.Writer, ctx.Request, logger)
+		hub := wsim.GetOrCreateRoom(roomId)
+		wsim.ServerWs(hub, ctx.Writer, ctx.Request, NewRpcClient(logger), logger)
 	})
 
 	if err := router.Run(*addr); err != nil {

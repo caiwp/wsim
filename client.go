@@ -2,37 +2,46 @@ package wsim
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
+	"github.com/caiwp/wsim/api/pb"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
 type Client struct {
-	hub    *Hub
-	conn   *websocket.Conn
-	send   chan []byte
-	logger *zap.Logger
+	cid       string
+	room      *Room
+	conn      *websocket.Conn
+	send      chan *pb.Proto
+	logger    *zap.Logger
+	rpcClient IRpcClient
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, logger *zap.Logger) *Client {
+func NewClient(room *Room, conn *websocket.Conn, rpcClient IRpcClient, logger *zap.Logger) *Client {
 	return &Client{
-		hub:    hub,
-		conn:   conn,
-		send:   make(chan []byte, 256),
-		logger: logger.With(zap.String("conn", conn.RemoteAddr().String())),
+		room:      room,
+		conn:      conn,
+		send:      make(chan *pb.Proto, 256),
+		logger:    logger.With(zap.String("conn", conn.RemoteAddr().String())),
+		rpcClient: rpcClient,
 	}
 }
 
+// 接收客户端数据
 func (c *Client) readPump() {
 	defer func() {
-		c.close()
+		c.room.unregister <- c
+		c.conn.Close()
 	}()
 
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
+		c.logger.Debug("pong")
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
@@ -48,11 +57,52 @@ func (c *Client) readPump() {
 
 		msg = bytes.TrimSpace(bytes.Replace(msg, newline, space, -1))
 		c.logger.Debug("readPump", zap.ByteString("msg", msg))
-		// FIXME: msg send
-		c.hub.broadcast <- msg
+
+		var proto = new(pb.Proto)
+		if err = json.Unmarshal(msg, &proto); err != nil {
+			c.logger.Warn(string(msg), zap.Error(err))
+			continue
+		}
+
+		switch proto.Op {
+		case int32(pb.Op_AUTH):
+			reply, err := c.rpcClient.Auth(context.TODO(), &pb.AuthReq{
+				Rid:   c.room.rid,
+				Token: proto.Body,
+			})
+			if err != nil || len(reply.Cid) == 0 { // 鉴权失败
+				c.logger.Error("Auth failed", zap.Error(err), zap.Any("reply", reply))
+				break
+			}
+			c.setCid(reply.Cid)
+
+		case int32(pb.Op_SEND): // 必须先鉴权
+			if !c.hadAuthed() {
+				c.logger.Warn("no auth", zap.Any("proto", proto))
+				continue
+			}
+
+			if err := c.rpcClient.Operate(context.TODO(), proto); err != nil {
+				c.logger.Error("Operate failed", zap.Error(err), zap.Any("proto", proto))
+				continue
+			}
+
+			// FIXME:
+			c.room.broadcastRoom(proto)
+		}
 	}
 }
 
+func (c *Client) setCid(cid string) {
+	c.cid = cid
+	c.logger = c.logger.With(zap.String("cid", cid))
+}
+
+func (c *Client) hadAuthed() bool {
+	return len(c.cid) > 0
+}
+
+// 推送客户端数据
 func (c *Client) writePump() {
 	tk := time.NewTicker(pingPeriod)
 	defer func() {
@@ -73,13 +123,13 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
-			w.Write(msg)
+			w.Write(c.parseMsg(msg))
 
 			// 批量写入
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
-				w.Write(<-c.send)
+				w.Write(c.parseMsg(<-c.send))
 			}
 
 			if err := w.Close(); err != nil {
@@ -88,6 +138,7 @@ func (c *Client) writePump() {
 
 		case <-tk.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.logger.Debug("ping")
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -95,14 +146,12 @@ func (c *Client) writePump() {
 	}
 }
 
-func (c *Client) close() {
-	c.hub.unregister <- c
-	c.conn.Close()
+func (c *Client) parseMsg(msg *pb.Proto) []byte {
+	byt, _ := json.Marshal(msg)
+	return byt
 }
 
-func ServerWs(hub *Hub, w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
-	logger.Debug("ServerWs")
-
+func ServerWs(room *Room, w http.ResponseWriter, r *http.Request, rpcClient IRpcClient, logger *zap.Logger) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Error("ServerWs", zap.Error(err))
@@ -110,8 +159,8 @@ func ServerWs(hub *Hub, w http.ResponseWriter, r *http.Request, logger *zap.Logg
 	}
 
 	logger.Info("ServerWs", zap.String("conn", conn.RemoteAddr().String()))
-	client := NewClient(hub, conn, logger)
-	client.hub.register <- client
+	client := NewClient(room, conn, rpcClient, logger)
+	client.room.register <- client
 
 	go client.readPump()
 	go client.writePump()

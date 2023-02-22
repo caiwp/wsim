@@ -4,40 +4,56 @@ package pb;
 
 option go_package = "./pb";
 
+// 操作
+enum Op {
+  NONE      = 0;  // 空
+  AUTH      = 1;  // 鉴权
+  SEND      = 2;  // 发送
+  HEARTBEAT = 3;  // 心跳
+  KICK      = 4;  // 踢出
+}
+
+// 交互消息体
 message Proto {
-  int32 ver  = 1;
-  int32 op   = 2;
-  int32 seq  = 3;
-  bytes body = 4;
+  int32 ver   = 1;  // 版本
+  int32 op    = 2;  // 操作 对应 Op
+  int32 seq   = 3;  // 系列号
+  string body = 4;  // 内容
 }
 
+// --------------------发送服务端数据-----------------------------
+// 鉴权
+message AuthReq {
+  string rid   = 1;  // 房间ID
+  string token = 2;  // 用户TOKEN
+}
+message AuthReply {
+  string cid = 1;  // 用户ID
+}
+
+// --------------------接收服务端数据-----------------------------
+// 推送个人
 message PushOneReq {
-  string rid = 1;
-  string cid = 2;
-  Proto data = 3;
+  string rid  = 1;  // 房间ID
+  string cid  = 2;  // 用户ID
+  Proto proto = 3;
 }
-
 message PushOneReply {}
 
+// 批量推送
 message PushBatchReq {
   message Dest {
-    string rid = 1;
-    string cid = 2;
-    Proto data = 3;
+    string rid  = 1;  // 房间ID
+    string cid  = 2;  // 用户ID
+    Proto proto = 3;
   }
   repeated Dest list = 1;
 }
-
 message PushBatchReply {}
 
-message BroadcastReq {
-  string rid = 1;
-  Proto data = 2;
+// 广播房间
+message BroadcastRoomReq {
+  string rid  = 1;  // 房间ID
+  Proto proto = 2;
 }
-
-message BroadcastReply {}
-
-message AuthReq {
-  string rid   = 1;
-  string token = 2;
-}
+message BroadcastRoomReply {}

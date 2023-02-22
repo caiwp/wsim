@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <title>Chat Example</title>
     <script type="text/javascript">
@@ -16,6 +17,36 @@
                 }
             }
 
+            function getQueryString(name) {
+                let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
+                let r = window.location.search.substr(1).match(reg);
+                if (r != null) {
+                    return decodeURIComponent(r[2]);
+                };
+                return null;
+            }
+
+            function auth() {
+                var token = getQueryString("token") 
+                var obj = {
+                    "ver": 1,
+                    "op": 1,
+                    "seq": 2,
+                    "body": token
+                }
+                conn.send(JSON.stringify(obj))
+            }
+
+            function send(content) {
+                var obj = {
+                    "ver": 1,
+                    "op": 2,
+                    "seq": 2,
+                    "body": content
+                }
+                conn.send(JSON.stringify(obj)) 
+            }
+
             document.getElementById("form").onsubmit = function () {
                 if (!conn) {
                     return false;
@@ -23,7 +54,8 @@
                 if (!msg.value) {
                     return false;
                 }
-                conn.send(msg.value);
+                send(msg.value)
+                // conn.send(msg.value);
                 msg.value = "";
                 return false;
             };
@@ -32,6 +64,10 @@
                 const params = window.location.href.split("/");
                 const roomId = params[params.length - 1];
                 conn = new WebSocket("ws://" + document.location.host + "/ws/" + roomId);
+
+                conn.onopen = function (evt) {
+                    auth()
+                }
                 conn.onclose = function (evt) {
                     let item = document.createElement("div");
                     item.innerHTML = "<b>Connection closed.</b>";
@@ -87,14 +123,15 @@
             width: 100%;
             overflow: hidden;
         }
-
     </style>
 </head>
+
 <body>
-<div id="log"></div>
-<form id="form">
-    <input type="text" id="msg" size="64" autofocus/>
-    <input type="submit" value="Send"/>
-</form>
+    <div id="log"></div>
+    <form id="form">
+        <input type="text" id="msg" size="64" autofocus />
+        <input type="submit" value="Send" />
+    </form>
 </body>
+
 </html>
