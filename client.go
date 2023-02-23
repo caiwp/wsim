@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/caiwp/wsim/api/pb"
@@ -19,6 +20,7 @@ type Client struct {
 	send      chan *pb.Proto
 	logger    *zap.Logger
 	rpcClient IRpcClient
+	once      sync.Once
 }
 
 func NewClient(room *Room, conn *websocket.Conn, rpcClient IRpcClient, logger *zap.Logger) *Client {
@@ -28,6 +30,7 @@ func NewClient(room *Room, conn *websocket.Conn, rpcClient IRpcClient, logger *z
 		send:      make(chan *pb.Proto, 256),
 		logger:    logger.With(zap.String("conn", conn.RemoteAddr().String())),
 		rpcClient: rpcClient,
+		once:      sync.Once{},
 	}
 }
 
@@ -149,6 +152,12 @@ func (c *Client) writePump() {
 func (c *Client) parseMsg(msg *pb.Proto) []byte {
 	byt, _ := json.Marshal(msg)
 	return byt
+}
+
+func (c *Client) Close() {
+	c.once.Do(func() {
+		close(c.send)
+	})
 }
 
 func ServerWs(room *Room, w http.ResponseWriter, r *http.Request, rpcClient IRpcClient, logger *zap.Logger) {

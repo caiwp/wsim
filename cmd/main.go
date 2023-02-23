@@ -8,6 +8,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/pprof"
+
 	"github.com/caiwp/wsim"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -47,14 +49,16 @@ func main() {
 }
 
 func runHttp(logger *zap.Logger) {
-	router := gin.New()
-	router.LoadHTMLFiles("index.html")
+	app := gin.New()
+	pprof.Register(app)
 
-	router.GET("/room/:roomId", func(ctx *gin.Context) {
+	app.LoadHTMLFiles("index.html")
+
+	app.GET("/room/:roomId", func(ctx *gin.Context) {
 		ctx.HTML(http.StatusOK, "index.html", nil)
 	})
 
-	router.GET("/ws/:roomId", func(ctx *gin.Context) {
+	app.GET("/ws/:roomId", func(ctx *gin.Context) {
 		roomId := ctx.Param("roomId")
 		logger.Debug("ws", zap.String("roomId", roomId))
 
@@ -62,7 +66,7 @@ func runHttp(logger *zap.Logger) {
 		wsim.ServerWs(hub, ctx.Writer, ctx.Request, NewRpcClient(logger), logger)
 	})
 
-	if err := router.Run(*addr); err != nil {
+	if err := app.Run(*addr); err != nil {
 		panic(err)
 	}
 }

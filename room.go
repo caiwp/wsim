@@ -3,13 +3,14 @@ package wsim
 import (
 	"log"
 	"sync"
+	"time"
 
 	"github.com/caiwp/wsim/api/pb"
 )
 
 type Room struct {
 	rid        string
-	clientMap  sync.Map
+	clientMap  sync.Map // *Client time
 	broadcast  chan *pb.Proto
 	register   chan *Client
 	unregister chan *Client
@@ -35,12 +36,12 @@ func (r *Room) run() {
 	for {
 		select {
 		case client := <-r.register:
-			r.clientMap.Store(client, true)
+			r.clientMap.Store(client, time.Now())
 
 		case client := <-r.unregister:
 			if _, ok := r.clientMap.Load(client); ok {
 				r.clientMap.Delete(client)
-				close(client.send)
+				client.Close()
 			}
 
 		case message := <-r.broadcast:
@@ -50,7 +51,7 @@ func (r *Room) run() {
 					select {
 					case client.send <- message:
 					default: // 下线
-						close(client.send)
+						client.Close()
 						r.clientMap.Delete(client)
 					}
 				}
@@ -58,7 +59,11 @@ func (r *Room) run() {
 				return true
 			})
 		case <-r.done:
-			log.Println("done: ", r.rid)
+			log.Println("room done: ", r.rid)
+			r.clientMap.Range(func(key, value interface{}) bool {
+				key.(*Client).Close()
+				return true
+			})
 			return
 		}
 	}

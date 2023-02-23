@@ -43,7 +43,9 @@ func RunTick(done <-chan struct{}, logger *zap.Logger) {
 					return true
 				}
 
+				// 清除空闲房间
 				if room.clearDelay >= clearDelyNum {
+					logger.Info("clear", zap.String("rid", room.rid))
 					room.Close()
 					bucket.Delete(key)
 					return true
