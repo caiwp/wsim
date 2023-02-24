@@ -14,13 +14,13 @@ import (
 )
 
 type Client struct {
-	cid       string
+	cid       uint32
 	room      *Room
 	conn      *websocket.Conn
 	send      chan *pb.Proto
 	logger    *zap.Logger
 	rpcClient IRpcClient
-	once      sync.Once
+	once      *sync.Once
 }
 
 func NewClient(room *Room, conn *websocket.Conn, rpcClient IRpcClient, logger *zap.Logger) *Client {
@@ -30,7 +30,7 @@ func NewClient(room *Room, conn *websocket.Conn, rpcClient IRpcClient, logger *z
 		send:      make(chan *pb.Proto, 256),
 		logger:    logger.With(zap.String("conn", conn.RemoteAddr().String())),
 		rpcClient: rpcClient,
-		once:      sync.Once{},
+		once:      new(sync.Once),
 	}
 }
 
@@ -55,6 +55,7 @@ func (c *Client) readPump() {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				c.logger.Error("readPump ReadMessage", zap.Error(err))
 			}
+			c.logger.Warn("read", zap.Error(err))
 			break
 		}
 
@@ -68,19 +69,19 @@ func (c *Client) readPump() {
 		}
 
 		switch proto.Op {
-		case int32(pb.Op_AUTH):
+		case int32(pb.Op_AUTH): // 鉴权
 			reply, err := c.rpcClient.Auth(context.TODO(), &pb.AuthReq{
 				Rid:   c.room.rid,
 				Token: proto.Body,
 			})
-			if err != nil || len(reply.Cid) == 0 { // 鉴权失败
+			if err != nil || reply.Cid == 0 { // 鉴权失败
 				c.logger.Error("Auth failed", zap.Error(err), zap.Any("reply", reply))
 				break
 			}
-			c.setCid(reply.Cid)
+			c.init(reply.Cid)
 
 		case int32(pb.Op_SEND): // 必须先鉴权
-			if !c.hadAuthed() {
+			if !c.authed() {
 				c.logger.Warn("no auth", zap.Any("proto", proto))
 				continue
 			}
@@ -89,20 +90,18 @@ func (c *Client) readPump() {
 				c.logger.Error("Operate failed", zap.Error(err), zap.Any("proto", proto))
 				continue
 			}
-
-			// FIXME:
-			c.room.broadcastRoom(proto)
 		}
 	}
 }
 
-func (c *Client) setCid(cid string) {
+func (c *Client) init(cid uint32) {
 	c.cid = cid
-	c.logger = c.logger.With(zap.String("cid", cid))
+	c.logger = c.logger.With(zap.Uint32("cid", cid))
+	c.room.register <- c
 }
 
-func (c *Client) hadAuthed() bool {
-	return len(c.cid) > 0
+func (c *Client) authed() bool {
+	return c.cid > 0
 }
 
 // 推送客户端数据
@@ -141,7 +140,6 @@ func (c *Client) writePump() {
 
 		case <-tk.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			c.logger.Debug("ping")
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -155,9 +153,21 @@ func (c *Client) parseMsg(msg *pb.Proto) []byte {
 }
 
 func (c *Client) Close() {
+	c.logger.Debug("close")
 	c.once.Do(func() {
+		c.logger.Debug("close do")
+		c.rpcClient.Close()
 		close(c.send)
 	})
+}
+
+func (c *Client) Push(proto *pb.Proto) (ok bool) {
+	select {
+	case c.send <- proto:
+		return true
+	default:
+	}
+	return
 }
 
 func ServerWs(room *Room, w http.ResponseWriter, r *http.Request, rpcClient IRpcClient, logger *zap.Logger) {
@@ -169,7 +179,6 @@ func ServerWs(room *Room, w http.ResponseWriter, r *http.Request, rpcClient IRpc
 
 	logger.Info("ServerWs", zap.String("conn", conn.RemoteAddr().String()))
 	client := NewClient(room, conn, rpcClient, logger)
-	client.room.register <- client
 
 	go client.readPump()
 	go client.writePump()

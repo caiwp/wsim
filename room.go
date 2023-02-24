@@ -1,31 +1,33 @@
 package wsim
 
 import (
-	"log"
 	"sync"
-	"time"
 
 	"github.com/caiwp/wsim/api/pb"
+	"go.uber.org/zap"
 )
 
 type Room struct {
-	rid        string
-	clientMap  sync.Map // *Client time
+	rid        uint32
+	clientMap  sync.Map // cid *Client
 	broadcast  chan *pb.Proto
 	register   chan *Client
 	unregister chan *Client
 	clearDelay int
 	done       chan struct{}
+	num        int
+	logger     *zap.Logger
 }
 
-func NewRoom(rid string) *Room {
+func NewRoom(rid uint32, logger *zap.Logger) *Room {
 	r := &Room{
 		rid:        rid,
 		clientMap:  sync.Map{},
-		broadcast:  make(chan *pb.Proto),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		broadcast:  make(chan *pb.Proto, 256),
+		register:   make(chan *Client, 256),
+		unregister: make(chan *Client, 256),
 		done:       make(chan struct{}, 1),
+		logger:     logger.With(zap.Uint32("rid", rid)),
 	}
 
 	go r.run()
@@ -36,51 +38,57 @@ func (r *Room) run() {
 	for {
 		select {
 		case client := <-r.register:
-			r.clientMap.Store(client, time.Now())
+			r.logger.Debug("register", zap.Uint32("client", client.cid))
+			r.clientMap.Store(client.cid, client)
 
 		case client := <-r.unregister:
-			if _, ok := r.clientMap.Load(client); ok {
-				r.clientMap.Delete(client)
+			r.logger.Debug("unregister", zap.Uint32("client", client.cid))
+			if _, ok := r.clientMap.Load(client.cid); ok {
+				r.clientMap.Delete(client.cid)
 				client.Close()
 			}
 
-		case message := <-r.broadcast:
+		case msg := <-r.broadcast:
 			r.clientMap.Range(func(key, value interface{}) bool {
-				client, ok := key.(*Client)
+				client, ok := value.(*Client)
 				if ok {
-					select {
-					case client.send <- message:
-					default: // 下线
+					if !client.Push(msg) { // 上线了
 						client.Close()
-						r.clientMap.Delete(client)
+						r.clientMap.Delete(client.cid)
 					}
 				}
 
 				return true
 			})
+
 		case <-r.done:
-			log.Println("room done: ", r.rid)
-			r.clientMap.Range(func(key, value interface{}) bool {
-				key.(*Client).Close()
-				return true
-			})
+			r.logger.Info("room done")
 			return
 		}
 	}
 }
 
-func (r *Room) broadcastRoom(proto *pb.Proto) {
-	r.broadcast <- proto
+func (r *Room) BroadcastRoom(msg *pb.Proto) {
+	r.broadcast <- msg
 }
 
-func (r *Room) ClientNum() (num int) {
+func (r *Room) clientNum() (num int) {
 	r.clientMap.Range(func(key, value interface{}) bool {
 		num++
 		return true
 	})
+	r.num = num
 	return
 }
 
 func (r *Room) Close() {
 	close(r.done)
+}
+
+func (r *Room) GetClient(cid uint32) *Client {
+	v, ok := r.clientMap.Load(cid)
+	if ok {
+		return v.(*Client)
+	}
+	return nil
 }

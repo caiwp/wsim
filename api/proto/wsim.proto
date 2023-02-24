@@ -22,38 +22,77 @@ message Proto {
 }
 
 // --------------------发送服务端数据-----------------------------
+// 业务
+service Busi {
+  // 鉴权
+  rpc Auth(AuthReq) returns (AuthReply) {}
+  // 操作
+  rpc Operate(OperateReq) returns (OperateReply) {}
+}
+
 // 鉴权
 message AuthReq {
-  string rid   = 1;  // 房间ID
+  uint32 rid   = 1;  // 房间ID
   string token = 2;  // 用户TOKEN
 }
 message AuthReply {
-  string cid = 1;  // 用户ID
+  uint32 cid = 1;  // 用户ID
 }
 
+// 操作
+message OperateReq {
+  Proto proto = 1;
+}
+message OperateReply {}
+
 // --------------------接收服务端数据-----------------------------
+service WsIm {
+  // 推送个人
+  rpc PushOne(PushOneReq) returns (PushOneReply) {}
+  // 批量推送
+  rpc PushBatch(PushBatchReq) returns (PushBatchReply) {}
+  // 广播房间
+  rpc BroadcastRoom(BroadcastRoomReq) returns (BroadcastRoomReply) {}
+  // 服务信息
+  rpc ServerInfo(ServerInfoReq) returns (ServerInfoReply) {}
+}
+
 // 推送个人
 message PushOneReq {
-  string rid  = 1;  // 房间ID
-  string cid  = 2;  // 用户ID
+  uint32 rid  = 1;  // 房间ID
+  uint32 cid  = 2;  // 用户ID
   Proto proto = 3;
 }
 message PushOneReply {}
 
 // 批量推送
 message PushBatchReq {
-  message Dest {
-    string rid  = 1;  // 房间ID
-    string cid  = 2;  // 用户ID
-    Proto proto = 3;
+  message Item {
+    uint32 rid   = 1;  // 房间ID
+    uint32 cid   = 2;  // 用户ID
+    Proto proto  = 3;
+    bool success = 4;  // 是否成功
+    string msg   = 5;  // 错误信息
   }
-  repeated Dest list = 1;
+  repeated Item list = 1;
 }
 message PushBatchReply {}
 
 // 广播房间
 message BroadcastRoomReq {
-  string rid  = 1;  // 房间ID
+  uint32 rid  = 1;  // 房间ID
   Proto proto = 2;
 }
 message BroadcastRoomReply {}
+
+message ServerInfoReq {
+  repeated uint32 rids = 1;  // 房间ID 可选
+}
+
+message ServerInfoReply {
+  message Item {
+    uint32 rid = 1;  // 房间ID
+    uint32 num = 2;  // 用户数量
+  }
+  repeated Item list = 1;
+}

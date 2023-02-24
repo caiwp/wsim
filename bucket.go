@@ -9,18 +9,18 @@ import (
 
 var bucket sync.Map // rid:*room
 
-func GetOrCreateRoom(rid string) *Room {
+func GetOrCreateRoom(rid uint32, logger *zap.Logger) *Room {
 	v, ok := bucket.Load(rid)
 	if ok {
 		return v.(*Room)
 	}
 
-	room := NewRoom(rid)
+	room := NewRoom(rid, logger)
 	bucket.Store(rid, room)
 	return room
 }
 
-func GetRoom(rid string) *Room {
+func GetRoom(rid uint32) *Room {
 	v, ok := bucket.Load(rid)
 	if ok {
 		return v.(*Room)
@@ -45,20 +45,20 @@ func RunTick(done <-chan struct{}, logger *zap.Logger) {
 
 				// 清除空闲房间
 				if room.clearDelay >= clearDelyNum {
-					logger.Info("clear", zap.String("rid", room.rid))
+					logger.Info("clear", zap.Uint32("rid", room.rid))
 					room.Close()
 					bucket.Delete(key)
 					return true
 				}
 
-				num := room.ClientNum()
+				num := room.clientNum()
 				if num == 0 {
 					room.clearDelay++
 				} else {
 					room.clearDelay = 0 // 重置
 				}
 
-				logger.Info("ClientNum", zap.Int("num", num), zap.String("rid", room.rid))
+				logger.Info("clientNum", zap.Int("num", num), zap.Uint32("rid", room.rid))
 				return true
 			})
 
