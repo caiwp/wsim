@@ -1,4 +1,4 @@
-# WSIM
+# wsim
 
 基于 Websocket 实现简单易用的轻量 IM 服务。
 
